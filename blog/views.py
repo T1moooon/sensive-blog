@@ -136,8 +136,8 @@ def post_detail(request, slug):
     # most_popular_tags = popular_tags[-5:]
     most_popular_tags = (
         Tag.objects
-            .annotate(posts_count=Count('posts', distinct=True))
-            .order_by('-posts_count')[:5]
+            .annotate(tag_count=Count('posts', distinct=True))
+            .order_by('-tag_count')[:5]
     )
 
     most_popular_posts = (
