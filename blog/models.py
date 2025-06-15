@@ -13,7 +13,7 @@ class PostQuerySet(models.QuerySet):
     def popular(self):
         return (
             self
-                .prefetch_related('author')
+                .prefetch_related('author', 'tags')
                 .annotate(likes_count=Count('likes', distinct=True))
                 .order_by('-likes_count')
         )
@@ -47,8 +47,8 @@ class TagQuerySet(models.QuerySet):
     def popular(self):
         popular_tags = (
             self
-                .annotate(tags_count=Count('posts'))
-                .order_by('-tags_count')
+                .annotate(posts_count=Count('posts'))
+                .order_by('-posts_count')
             )
         return popular_tags
 
