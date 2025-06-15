@@ -10,11 +10,46 @@ class PostQuerySet(models.QuerySet):
         posts_at_year = self.filter(published_at__year=year).order_by('published_at')
         return posts_at_year
 
+    def popular(self):
+        return (
+            self
+                .prefetch_related('author')
+                .annotate(likes_count=Count('likes', distinct=True))
+                .order_by('-likes_count')
+        )
+
+    def fetch_with_comments_count(self):
+        """
+        Выполняет двухэтапный подсчёт комментариев:
+        1. Превращает QuerySet в список постов.
+        2. Во втором запросе считает comments_count для этих id и добавляет атрибут к каждому объекту.
+
+        Такой подход эффективнее, чем единоразовый .annotate, когда в таблице комментариев много записей.
+        """
+        posts = list(self)
+        ids = [post.id for post in posts]
+        comments_data = (
+            self.model.objects
+                .filter(id__in=ids)
+                .annotate(comments_count=Count('comments', distinct=True))
+                .values_list('id', 'comments_count')
+        )
+        count_map = dict(comments_data)
+
+        for post in posts:
+            post.comments_count = count_map.get(post.id, 0)
+
+        return posts
+
 
 class TagQuerySet(models.QuerySet):
 
     def popular(self):
-        popular_tags = self.annotate(tags_count=Count('posts')).order_by('-tags_count')
+        popular_tags = (
+            self
+                .annotate(tags_count=Count('posts'))
+                .order_by('-tags_count')
+            )
         return popular_tags
 
 
