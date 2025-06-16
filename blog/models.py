@@ -1,7 +1,7 @@
 from django.db import models
 from django.urls import reverse
 from django.contrib.auth.models import User
-from django.db.models import Count
+from django.db.models import Count, Prefetch
 
 
 class PostQuerySet(models.QuerySet):
@@ -10,47 +10,79 @@ class PostQuerySet(models.QuerySet):
         posts_at_year = self.filter(published_at__year=year).order_by('published_at')
         return posts_at_year
 
-    def popular(self):
-        return (
-            self
-                .prefetch_related('author', 'tags')
-                .annotate(likes_count=Count('likes', distinct=True))
-                .order_by('-likes_count')
+    def get_post_info(self):
+        post = (
+            self.select_related('author')
+            .prefetch_related(
+                Prefetch('tags', queryset=Tag.objects.annotate(
+                    posts_count=Count('posts')
+                ))
+            )
         )
+        return post
+
+    def popular(self):
+        posts_with_likes = (
+            self.get_post_info()
+            .annotate(likes_count=Count('likes', distinct=True))
+            .order_by('-likes_count')
+        )
+
+        post_ids = [post.id for post in posts_with_likes]
+
+        comments_data = (
+            Post.objects.filter(id__in=post_ids)
+            .annotate(comments_count=Count('comments', distinct=True))
+            .values_list('id', 'comments_count')
+        )
+        comments_dict = dict(comments_data)
+
+        for post in posts_with_likes:
+            post.comments_count = comments_dict.get(post.id, 0)
+
+        return posts_with_likes
 
     def fetch_with_comments_count(self):
         """
-        Выполняет двухэтапный подсчёт комментариев:
-        1. Превращает QuerySet в список постов.
-        2. Во втором запросе считает comments_count для этих id и добавляет атрибут к каждому объекту.
+        Добавляет количество комментов к посту
 
-        Такой подход эффективнее, чем единоразовый .annotate, когда в таблице комментариев много записей.
+        Преимущества:
+        1. Чистый код
+        2. Реюзабельность
+        3. Помогает уменьшить нагрузку на бд
         """
-        posts = list(self)
-        ids = [post.id for post in posts]
+        posts_with_comments = self.get_post_info()
+
         comments_data = (
-            self.model.objects
-                .filter(id__in=ids)
-                .annotate(comments_count=Count('comments', distinct=True))
-                .values_list('id', 'comments_count')
+            Post.objects.filter(id__in=[
+                post.id for post in posts_with_comments
+            ])
+            .annotate(comments_count=Count('comments', distinct=True))
+            .values_list('id', 'comments_count')
         )
-        count_map = dict(comments_data)
+        comments_dict = dict(comments_data)
 
-        for post in posts:
-            post.comments_count = count_map.get(post.id, 0)
+        for post in posts_with_comments:
+            post.comments_count = comments_dict.get(post.id, 0)
 
-        return posts
+        return posts_with_comments
+
+    def prefetch_tags_with_posts_count(self):
+        return self.prefetch_related(
+            Prefetch('tags', queryset=Tag.objects.with_posts_count())
+        )
 
 
 class TagQuerySet(models.QuerySet):
-
     def popular(self):
         popular_tags = (
-            self
-                .annotate(posts_count=Count('posts'))
-                .order_by('-posts_count')
-            )
+            self.annotate(posts_count=Count('posts'))
+            .order_by('-posts_count')
+        )
         return popular_tags
+
+    def with_posts_count(self):
+        return self.annotate(posts_count=Count('posts'))
 
 
 class Post(models.Model):
