@@ -5,6 +5,7 @@ from blog.models import Comment, Post, Tag
 
 def serialize_post(post):
     tags = post.tags.all()
+    first_tag = tags.first()
     return {
         'title': post.title,
         'teaser_text': post.text[:200],
@@ -14,7 +15,7 @@ def serialize_post(post):
         'published_at': post.published_at,
         'slug': post.slug,
         'tags': [serialize_tag(tag) for tag in tags],
-        'first_tag_title': tags[0].title,
+        'first_tag_title': first_tag.title,
     }
 
 
