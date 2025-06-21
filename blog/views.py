@@ -55,7 +55,7 @@ def index(request):
 
 
 def post_detail(request, slug):
-    post = (
+    post = get_object_or_404(
         Post.objects.filter(slug=slug)
         .select_related('author')
         .prefetch_tags_with_posts_count()
