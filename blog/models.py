@@ -21,26 +21,25 @@ class PostQuerySet(models.QuerySet):
         )
         return post
 
-    def popular(self):
-        posts_with_likes = (
-            self.get_post_info()
-            .annotate(likes_count=Count('likes', distinct=True))
-            .order_by('-likes_count')
-        )
-
-        post_ids = [post.id for post in posts_with_likes]
-
+    def _annotate_comments_count(self, qs):
+        ids = qs.values_list('id', flat=True)
         comments_data = (
-            Post.objects.filter(id__in=post_ids)
-            .annotate(comments_count=Count('comments', distinct=True))
-            .values_list('id', 'comments_count')
+            Post.objects.filter(id__in=ids)
+                .annotate(comments_count=Count('comments', distinct=True))
+                .values_list('id', 'comments_count')
         )
-        comments_dict = dict(comments_data)
+        counts = dict(comments_data)
+        for post in qs:
+            post.comments_count = counts.get(post.id, 0)
+        return qs
 
-        for post in posts_with_likes:
-            post.comments_count = comments_dict.get(post.id, 0)
-
-        return posts_with_likes
+    def popular(self):
+        qs = (
+            self.get_post_info()
+                .annotate(likes_count=Count('likes', distinct=True))
+                .order_by('-likes_count')
+        )
+        return self._annotate_comments_count(qs)
 
     def fetch_with_comments_count(self):
         """
@@ -51,21 +50,8 @@ class PostQuerySet(models.QuerySet):
         2. Реюзабельность
         3. Помогает уменьшить нагрузку на бд
         """
-        posts_with_comments = self.get_post_info()
-
-        comments_data = (
-            Post.objects.filter(id__in=[
-                post.id for post in posts_with_comments
-            ])
-            .annotate(comments_count=Count('comments', distinct=True))
-            .values_list('id', 'comments_count')
-        )
-        comments_dict = dict(comments_data)
-
-        for post in posts_with_comments:
-            post.comments_count = comments_dict.get(post.id, 0)
-
-        return posts_with_comments
+        qs = self.get_post_info()
+        return self._annotate_comments_count(qs)
 
     def prefetch_tags_with_posts_count(self):
         return self.prefetch_related(
