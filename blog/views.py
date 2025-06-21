@@ -3,6 +3,12 @@ from django.db.models import Count, Prefetch
 from blog.models import Comment, Post, Tag
 
 
+def get_popular_data(limit=5):
+    popular_tags = Tag.objects.popular()[:limit]
+    popular_posts = Post.objects.popular()[:limit]
+    return popular_tags, popular_posts
+
+
 def serialize_post(post):
     tags = post.tags.all()
     first_tag = tags.first()
@@ -28,14 +34,11 @@ def serialize_tag(tag):
 
 def index(request):
 
-    most_popular_posts = (
-        Post.objects.popular()[:5]
-    )
+    most_popular_tags, most_popular_posts = get_popular_data()
     most_fresh_posts = (
         Post.objects.order_by('-published_at')[:5]
         .fetch_with_comments_count()
     )
-    most_popular_tags = Tag.objects.popular()[:5]
 
     context = {
         'most_popular_posts': [
@@ -89,8 +92,7 @@ def post_detail(request, slug):
         'tags': [serialize_tag(tag) for tag in post.tags.all()],
     }
 
-    most_popular_tags = Tag.objects.popular()[:5]
-    most_popular_posts = Post.objects.popular()[:5]
+    most_popular_tags, most_popular_posts = get_popular_data()
 
     context = {
         'post': serialized_post,
@@ -116,8 +118,7 @@ def tag_filter(request, tag_title):
         [:20]
     )
 
-    most_popular_tags = Tag.objects.popular()[:5]
-    most_popular_posts = Post.objects.popular()[:5]
+    most_popular_tags, most_popular_posts = get_popular_data()
 
     context = {
         'tag': tag.title,
