@@ -67,7 +67,6 @@ def post_detail(request, slug):
             comments_count=Count('comments', distinct=True),
             likes_count=Count('likes', distinct=True)
         )
-        .first()
     )
 
     serialized_comments = [
