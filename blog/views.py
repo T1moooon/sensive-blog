@@ -10,7 +10,8 @@ def get_popular_data(limit=5):
 
 
 def serialize_post(post):
-    tags = post.tags.all()
+    tags = list(post.tags.all())
+    first_tag, *rest = tags if tags else (None,)
     return {
         'title': post.title,
         'teaser_text': post.text[:200],
@@ -20,7 +21,7 @@ def serialize_post(post):
         'published_at': post.published_at,
         'slug': post.slug,
         'tags': [serialize_tag(tag) for tag in tags],
-        'first_tag_title': tags[0],
+        'first_tag_title': first_tag.title if first_tag else None,
     }
 
 
